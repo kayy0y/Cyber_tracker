@@ -1,0 +1,202 @@
+{% extends "base.html" %}
+{% block title %}Tasks — CCT{% endblock %}
+{% block page_title %}Task Management{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+  <div class="flex flex-wrap items-center justify-between gap-3">
+    <p class="text-slate-400 text-sm" id="task-count">Loading...</p>
+    <div class="flex items-center gap-3">
+      <div class="flex bg-slate-800 border border-slate-700 rounded-xl overflow-hidden">
+        <button onclick="setFilter('All')"         id="btn-All"         class="px-3 py-2 text-xs font-medium transition-colors bg-blue-600 text-white">All</button>
+        <button onclick="setFilter('Pending')"     id="btn-Pending"     class="px-3 py-2 text-xs font-medium transition-colors text-slate-400 hover:text-white">Pending</button>
+        <button onclick="setFilter('In Progress')" id="btn-In Progress" class="px-3 py-2 text-xs font-medium transition-colors text-slate-400 hover:text-white">In Progress</button>
+        <button onclick="setFilter('Completed')"   id="btn-Completed"   class="px-3 py-2 text-xs font-medium transition-colors text-slate-400 hover:text-white">Completed</button>
+      </div>
+      <button onclick="openModal()"
+        class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2.5 rounded-xl text-sm font-medium transition-colors">
+        + Add Task
+      </button>
+    </div>
+  </div>
+
+  <div class="bg-slate-800 border border-slate-700 rounded-2xl overflow-hidden">
+    <div class="overflow-x-auto">
+      <table class="w-full min-w-[680px]">
+        <thead>
+          <tr class="border-b border-slate-700">
+            <th class="text-left text-slate-400 text-xs uppercase tracking-wide px-6 py-4">Task</th>
+            <th class="text-left text-slate-400 text-xs uppercase tracking-wide px-6 py-4">Assigned To</th>
+            <th class="text-left text-slate-400 text-xs uppercase tracking-wide px-6 py-4">Priority</th>
+            <th class="text-left text-slate-400 text-xs uppercase tracking-wide px-6 py-4">Status</th>
+            <th class="text-left text-slate-400 text-xs uppercase tracking-wide px-6 py-4">Deadline</th>
+            <th class="text-left text-slate-400 text-xs uppercase tracking-wide px-6 py-4">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="task-tbody">
+          <tr><td colspan="6" class="text-center text-slate-400 py-16">Loading tasks...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Modal -->
+<div id="modal" class="modal-overlay">
+  <div class="bg-slate-800 border border-slate-700 rounded-2xl p-8 w-full max-w-md mx-4 max-h-[92vh] overflow-y-auto">
+    <h2 id="modal-title" class="text-white text-xl font-bold mb-6">Create Task</h2>
+    <div id="modal-error" class="hidden bg-red-900/40 border border-red-500/50 text-red-300 px-4 py-3 rounded-xl mb-4 text-sm"></div>
+    <div class="space-y-4">
+      <div>
+        <label class="text-slate-300 text-sm font-medium block mb-2">Title *</label>
+        <input id="t-title" class="w-full bg-slate-700 border border-slate-600 text-white px-4 py-3 rounded-xl focus:outline-none focus:border-blue-500"/>
+      </div>
+      <div>
+        <label class="text-slate-300 text-sm font-medium block mb-2">Description</label>
+        <textarea id="t-desc" rows="2" class="w-full bg-slate-700 border border-slate-600 text-white px-4 py-3 rounded-xl focus:outline-none focus:border-blue-500 resize-none"></textarea>
+      </div>
+      <div>
+        <label class="text-slate-300 text-sm font-medium block mb-2">Assign To</label>
+        <select id="t-user" class="w-full bg-slate-700 border border-slate-600 text-white px-4 py-3 rounded-xl focus:outline-none focus:border-blue-500">
+          <option value="">Unassigned</option>
+        </select>
+      </div>
+      <div>
+        <label class="text-slate-300 text-sm font-medium block mb-2">Framework</label>
+        <select id="t-fw" class="w-full bg-slate-700 border border-slate-600 text-white px-4 py-3 rounded-xl focus:outline-none focus:border-blue-500">
+          <option value="">None</option>
+        </select>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="text-slate-300 text-sm font-medium block mb-2">Priority</label>
+          <select id="t-priority" class="w-full bg-slate-700 border border-slate-600 text-white px-4 py-3 rounded-xl focus:outline-none focus:border-blue-500">
+            <option>Low</option><option selected>Medium</option><option>High</option>
+          </select>
+        </div>
+        <div>
+          <label class="text-slate-300 text-sm font-medium block mb-2">Status</label>
+          <select id="t-status" class="w-full bg-slate-700 border border-slate-600 text-white px-4 py-3 rounded-xl focus:outline-none focus:border-blue-500">
+            <option>Pending</option><option>In Progress</option><option>Completed</option>
+          </select>
+        </div>
+      </div>
+      <div>
+        <label class="text-slate-300 text-sm font-medium block mb-2">Deadline</label>
+        <input id="t-deadline" type="date" class="w-full bg-slate-700 border border-slate-600 text-white px-4 py-3 rounded-xl focus:outline-none focus:border-blue-500"/>
+      </div>
+      <div class="flex gap-3 pt-2">
+        <button id="save-btn" onclick="saveTask()" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-xl font-semibold transition-colors">Save</button>
+        <button onclick="closeModal()" class="flex-1 bg-slate-700 hover:bg-slate-600 text-white py-3 rounded-xl transition-colors">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let allTasks = [], users = [], frameworks = [], editingId = null, currentFilter = 'All';
+
+const PRIORITY_CLS = { Low:'bg-green-900/50 text-green-400', Medium:'bg-yellow-900/50 text-yellow-400', High:'bg-red-900/50 text-red-400' };
+const STATUS_CLS   = { 'Pending':'bg-slate-700 text-slate-300', 'In Progress':'bg-blue-900/50 text-blue-400', 'Completed':'bg-green-900/50 text-green-400' };
+
+async function loadAll() {
+  [allTasks, users, frameworks] = await Promise.all([
+    api('GET', '/tasks/'), api('GET', '/tasks/users/all'), api('GET', '/frameworks/')
+  ]);
+
+  // Populate selects
+  const uSel = document.getElementById('t-user');
+  uSel.innerHTML = '<option value="">Unassigned</option>' + users.map(u => `<option value="${u.id}">${escHtml(u.name)}</option>`).join('');
+  const fSel = document.getElementById('t-fw');
+  fSel.innerHTML = '<option value="">None</option>' + frameworks.map(f => `<option value="${f.id}">${escHtml(f.frameworkName)}</option>`).join('');
+
+  renderTable();
+}
+
+function renderTable() {
+  const filtered = currentFilter === 'All' ? allTasks : allTasks.filter(t => t.status === currentFilter);
+  document.getElementById('task-count').textContent = `${allTasks.length} task${allTasks.length!==1?'s':''} total`;
+
+  const tbody = document.getElementById('task-tbody');
+  if (filtered.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="6" class="text-center text-slate-400 py-16">No ${currentFilter === 'All' ? '' : currentFilter.toLowerCase() + ' '}tasks found.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = filtered.map(t => `
+    <tr class="border-b border-slate-700/50 hover:bg-slate-700/20 transition-colors">
+      <td class="px-6 py-4">
+        <p class="text-white text-sm font-medium">${escHtml(t.title)}</p>
+        ${t.frameworkId ? `<p class="text-slate-500 text-xs mt-0.5">${escHtml(t.frameworkId.frameworkName)}</p>` : ''}
+      </td>
+      <td class="px-6 py-4 text-slate-300 text-sm">${t.assignedTo ? escHtml(t.assignedTo.name) : '<span class="italic text-slate-500">Unassigned</span>'}</td>
+      <td class="px-6 py-4"><span class="text-xs px-2.5 py-1 rounded-full font-medium ${PRIORITY_CLS[t.priority]||''}">${t.priority}</span></td>
+      <td class="px-6 py-4"><span class="text-xs px-2.5 py-1 rounded-full font-medium ${STATUS_CLS[t.status]||''}">${t.status}</span></td>
+      <td class="px-6 py-4 text-slate-400 text-sm">${t.deadline ? new Date(t.deadline).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}) : '—'}</td>
+      <td class="px-6 py-4">
+        <button onclick='editTask(${JSON.stringify(t).replace(/'/g,"&#39;")})' class="text-blue-400 hover:text-blue-300 text-sm mr-3">Edit</button>
+        <button onclick="deleteTask('${t.id}')" class="text-red-400 hover:text-red-300 text-sm">Delete</button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+function setFilter(f) {
+  currentFilter = f;
+  ['All','Pending','In Progress','Completed'].forEach(s => {
+    const btn = document.getElementById('btn-'+s);
+    btn.className = `px-3 py-2 text-xs font-medium transition-colors ${s===f ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'}`;
+  });
+  renderTable();
+}
+
+function openModal(task=null) {
+  editingId = task ? task.id : null;
+  document.getElementById('modal-title').textContent = task ? 'Edit Task' : 'Create Task';
+  document.getElementById('t-title').value    = task ? task.title           : '';
+  document.getElementById('t-desc').value     = task ? task.description     : '';
+  document.getElementById('t-user').value     = task?.assignedTo?.id        || '';
+  document.getElementById('t-fw').value       = task?.frameworkId?.id       || '';
+  document.getElementById('t-priority').value = task ? task.priority        : 'Medium';
+  document.getElementById('t-status').value   = task ? task.status          : 'Pending';
+  document.getElementById('t-deadline').value = task?.deadline ? task.deadline.split('T')[0] : '';
+  document.getElementById('modal-error').classList.add('hidden');
+  document.getElementById('modal').classList.add('open');
+}
+
+function editTask(task) { openModal(task); }
+function closeModal() { document.getElementById('modal').classList.remove('open'); }
+
+async function saveTask() {
+  const title = document.getElementById('t-title').value.trim();
+  if (!title) { showErr('Title is required.'); return; }
+  const btn = document.getElementById('save-btn');
+  btn.textContent = 'Saving...'; btn.disabled = true;
+  const body = {
+    title,
+    description: document.getElementById('t-desc').value,
+    assignedTo:  document.getElementById('t-user').value     || null,
+    frameworkId: document.getElementById('t-fw').value       || null,
+    priority:    document.getElementById('t-priority').value,
+    status:      document.getElementById('t-status').value,
+    deadline:    document.getElementById('t-deadline').value || null,
+  };
+  try {
+    editingId ? await api('PUT', `/tasks/${editingId}`, body) : await api('POST', '/tasks/', body);
+    closeModal(); loadAll();
+  } catch(err) { showErr(err.message); }
+  finally { btn.textContent='Save'; btn.disabled=false; }
+}
+
+async function deleteTask(id) {
+  if (!confirm('Delete this task?')) return;
+  await api('DELETE', `/tasks/${id}`); loadAll();
+}
+
+function showErr(m) { const b=document.getElementById('modal-error'); b.textContent=m; b.classList.remove('hidden'); }
+function escHtml(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+loadAll();
+</script>
+{% endblock %}

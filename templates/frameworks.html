@@ -1,0 +1,182 @@
+{% extends "base.html" %}
+{% block title %}Frameworks — CCT{% endblock %}
+{% block page_title %}Compliance Frameworks{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+  <!-- Header -->
+  <div class="flex items-center justify-between">
+    <p class="text-slate-400 text-sm" id="fw-count">Loading...</p>
+    <button onclick="openModal()"
+      class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2.5 rounded-xl text-sm font-medium transition-colors">
+      + Add Framework
+    </button>
+  </div>
+
+  <!-- Cards grid -->
+  <div id="fw-grid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+    <div class="col-span-3 text-center py-16 text-slate-400">Loading frameworks...</div>
+  </div>
+</div>
+
+<!-- Modal -->
+<div id="modal" class="modal-overlay">
+  <div class="bg-slate-800 border border-slate-700 rounded-2xl p-8 w-full max-w-md mx-4">
+    <h2 id="modal-title" class="text-white text-xl font-bold mb-6">Add Framework</h2>
+    <div id="modal-error" class="hidden bg-red-900/40 border border-red-500/50 text-red-300 px-4 py-3 rounded-xl mb-4 text-sm"></div>
+
+    <div class="space-y-4">
+      <div>
+        <label class="text-slate-300 text-sm font-medium block mb-2">Framework Name *</label>
+        <input id="f-name" placeholder="e.g. ISO 27001, GDPR, SOC 2"
+          class="w-full bg-slate-700 border border-slate-600 text-white px-4 py-3 rounded-xl focus:outline-none focus:border-blue-500"/>
+      </div>
+      <div>
+        <label class="text-slate-300 text-sm font-medium block mb-2">Description</label>
+        <textarea id="f-desc" rows="3"
+          class="w-full bg-slate-700 border border-slate-600 text-white px-4 py-3 rounded-xl focus:outline-none focus:border-blue-500 resize-none"></textarea>
+      </div>
+      <div>
+        <label class="text-slate-300 text-sm font-medium block mb-2">Status</label>
+        <select id="f-status"
+          class="w-full bg-slate-700 border border-slate-600 text-white px-4 py-3 rounded-xl focus:outline-none focus:border-blue-500">
+          <option>Pending</option>
+          <option>Compliant</option>
+          <option>Non-Compliant</option>
+        </select>
+      </div>
+      <div>
+        <label class="text-slate-300 text-sm font-medium block mb-2">Completion: <span id="pct-label" class="text-blue-400">0%</span></label>
+        <input id="f-pct" type="range" min="0" max="100" value="0"
+          oninput="document.getElementById('pct-label').textContent=this.value+'%'"
+          class="w-full accent-blue-600"/>
+      </div>
+      <div class="flex gap-3 pt-2">
+        <button id="save-btn" onclick="saveFramework()"
+          class="flex-1 bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-xl font-semibold transition-colors">
+          Save
+        </button>
+        <button onclick="closeModal()"
+          class="flex-1 bg-slate-700 hover:bg-slate-600 text-white py-3 rounded-xl transition-colors">
+          Cancel
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let editingId = null;
+const STATUS_CLASSES = {
+  'Compliant':     'bg-green-900/50 text-green-400 border border-green-700/50',
+  'Pending':       'bg-yellow-900/50 text-yellow-400 border border-yellow-700/50',
+  'Non-Compliant': 'bg-red-900/50 text-red-400 border border-red-700/50',
+};
+
+async function loadFrameworks() {
+  const frameworks = await api('GET', '/frameworks/');
+  if (!frameworks) return;
+
+  document.getElementById('fw-count').textContent = `${frameworks.length} framework${frameworks.length !== 1 ? 's' : ''} total`;
+
+  const grid = document.getElementById('fw-grid');
+  if (frameworks.length === 0) {
+    grid.innerHTML = `<div class="col-span-3 text-center py-24 bg-slate-800 border border-slate-700 rounded-2xl">
+      <p class="text-4xl mb-3">🛡️</p>
+      <p class="text-white font-medium">No frameworks yet</p>
+      <p class="text-slate-400 text-sm mt-1">Add ISO 27001, GDPR, SOC 2, or any other framework.</p>
+    </div>`;
+    return;
+  }
+
+  grid.innerHTML = frameworks.map(fw => `
+    <div class="bg-slate-800 border border-slate-700 rounded-2xl p-6 flex flex-col gap-4">
+      <div class="flex items-start justify-between gap-2">
+        <h3 class="text-white font-semibold">${escHtml(fw.frameworkName)}</h3>
+        <span class="text-xs px-2.5 py-1 rounded-full font-medium flex-shrink-0 ${STATUS_CLASSES[fw.status] || ''}">${fw.status}</span>
+      </div>
+      <p class="text-slate-400 text-sm flex-1">${escHtml(fw.description || 'No description provided.')}</p>
+      <div>
+        <div class="flex justify-between text-xs text-slate-400 mb-1.5">
+          <span>Completion</span>
+          <span class="text-white font-medium">${fw.completionPercentage}%</span>
+        </div>
+        <div class="w-full bg-slate-700 rounded-full h-2">
+          <div class="bg-blue-600 h-2 rounded-full" style="width:${fw.completionPercentage}%"></div>
+        </div>
+      </div>
+      <div class="flex gap-2">
+        <button onclick="editFramework(${JSON.stringify(fw).replace(/"/g,'&quot;')})"
+          class="flex-1 bg-slate-700 hover:bg-slate-600 text-white text-sm py-2 rounded-xl transition-colors">Edit</button>
+        <button onclick="deleteFramework('${fw.id}')"
+          class="flex-1 bg-red-900/40 hover:bg-red-800/60 text-red-400 text-sm py-2 rounded-xl transition-colors">Delete</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function openModal(fw = null) {
+  editingId = fw ? fw.id : null;
+  document.getElementById('modal-title').textContent = fw ? 'Edit Framework' : 'Add Framework';
+  document.getElementById('f-name').value  = fw ? fw.frameworkName : '';
+  document.getElementById('f-desc').value  = fw ? fw.description   : '';
+  document.getElementById('f-status').value= fw ? fw.status        : 'Pending';
+  document.getElementById('f-pct').value   = fw ? fw.completionPercentage : 0;
+  document.getElementById('pct-label').textContent = (fw ? fw.completionPercentage : 0) + '%';
+  document.getElementById('modal-error').classList.add('hidden');
+  document.getElementById('modal').classList.add('open');
+}
+
+function editFramework(fw) { openModal(fw); }
+function closeModal() { document.getElementById('modal').classList.remove('open'); }
+
+async function saveFramework() {
+  const name = document.getElementById('f-name').value.trim();
+  if (!name) { showModalError('Framework name is required.'); return; }
+
+  const btn = document.getElementById('save-btn');
+  btn.textContent = 'Saving...'; btn.disabled = true;
+
+  const body = {
+    frameworkName: name,
+    description:   document.getElementById('f-desc').value,
+    status:        document.getElementById('f-status').value,
+    completionPercentage: parseInt(document.getElementById('f-pct').value)
+  };
+
+  try {
+    if (editingId) {
+      await api('PUT', `/frameworks/${editingId}`, body);
+    } else {
+      await api('POST', '/frameworks/', body);
+    }
+    closeModal();
+    loadFrameworks();
+  } catch (err) {
+    showModalError(err.message);
+  } finally {
+    btn.textContent = 'Save'; btn.disabled = false;
+  }
+}
+
+async function deleteFramework(id) {
+  if (!confirm('Delete this framework?')) return;
+  await api('DELETE', `/frameworks/${id}`);
+  loadFrameworks();
+}
+
+function showModalError(msg) {
+  const box = document.getElementById('modal-error');
+  box.textContent = msg;
+  box.classList.remove('hidden');
+}
+
+function escHtml(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+loadFrameworks();
+</script>
+{% endblock %}

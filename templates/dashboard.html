@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — CCT{% endblock %}
+{% block page_title %}Dashboard Overview{% endblock %}
+
+{% block content %}
+<div id="loading" class="text-center py-20 text-slate-400">Loading dashboard...</div>
+<div id="content" class="hidden space-y-6">
+
+  <!-- Stat Cards -->
+  <div class="grid grid-cols-2 lg:grid-cols-5 gap-4">
+    <div class="bg-slate-800 border border-slate-700 rounded-2xl p-5">
+      <p class="text-3xl mb-1">🛡️</p>
+      <p class="text-2xl font-bold text-white" id="stat-frameworks">0</p>
+      <p class="text-slate-400 text-sm">Frameworks</p>
+    </div>
+    <div class="bg-slate-800 border border-slate-700 rounded-2xl p-5">
+      <p class="text-3xl mb-1">📈</p>
+      <p class="text-2xl font-bold text-white" id="stat-compliance">0%</p>
+      <p class="text-slate-400 text-sm">Avg Compliance</p>
+    </div>
+    <div class="bg-slate-800 border border-slate-700 rounded-2xl p-5">
+      <p class="text-3xl mb-1">⚠️</p>
+      <p class="text-2xl font-bold text-white" id="stat-risks">0</p>
+      <p class="text-slate-400 text-sm">Open Risks</p>
+    </div>
+    <div class="bg-slate-800 border border-slate-700 rounded-2xl p-5">
+      <p class="text-3xl mb-1">✅</p>
+      <p class="text-2xl font-bold text-white" id="stat-done">0</p>
+      <p class="text-slate-400 text-sm">Tasks Done</p>
+    </div>
+    <div class="bg-slate-800 border border-slate-700 rounded-2xl p-5">
+      <p class="text-3xl mb-1">⏳</p>
+      <p class="text-2xl font-bold text-white" id="stat-pending">0</p>
+      <p class="text-slate-400 text-sm">Tasks Pending</p>
+    </div>
+  </div>
+
+  <!-- Charts -->
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <div class="bg-slate-800 border border-slate-700 rounded-2xl p-6">
+      <h3 class="text-white font-semibold mb-1">Tasks by Status</h3>
+      <p class="text-slate-400 text-xs mb-4">Current task distribution</p>
+      <div class="h-56 flex items-center justify-center">
+        <canvas id="taskChart"></canvas>
+      </div>
+    </div>
+    <div class="bg-slate-800 border border-slate-700 rounded-2xl p-6">
+      <h3 class="text-white font-semibold mb-1">Risk Severity</h3>
+      <p class="text-slate-400 text-xs mb-4">Breakdown by severity level</p>
+      <div class="h-56 flex items-center justify-center">
+        <canvas id="riskChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Recent Activity -->
+  <div class="bg-slate-800 border border-slate-700 rounded-2xl p-6">
+    <h3 class="text-white font-semibold mb-4">Recent Activity</h3>
+    <div id="activity-list"></div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+const CHART_DEFAULTS = {
+  color: '#94a3b8',
+  plugins: { legend: { labels: { color: '#94a3b8' } } }
+};
+
+async function loadDashboard() {
+  try {
+    const stats = await api('GET', '/dashboard/stats');
+    if (!stats) return;
+
+    document.getElementById('stat-frameworks').textContent = stats.totalFrameworks;
+    document.getElementById('stat-compliance').textContent = stats.avgCompliance + '%';
+    document.getElementById('stat-risks').textContent      = stats.openRisks;
+    document.getElementById('stat-done').textContent       = stats.completedTasks;
+    document.getElementById('stat-pending').textContent    = stats.pendingTasks;
+
+    // Task bar chart
+    const taskData = stats.tasksByStatus || [];
+    new Chart(document.getElementById('taskChart'), {
+      type: 'bar',
+      data: {
+        labels: taskData.map(t => t.name),
+        datasets: [{ data: taskData.map(t => t.value), backgroundColor: '#3b82f6', borderRadius: 6 }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } },
+          y: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } }
+        }
+      }
+    });
+
+    // Risk doughnut chart
+    const riskData = stats.risksBySeverity || [];
+    const COLORS = ['#10b981','#f59e0b','#f97316','#ef4444'];
+    new Chart(document.getElementById('riskChart'), {
+      type: 'doughnut',
+      data: {
+        labels: riskData.map(r => r.name),
+        datasets: [{ data: riskData.map(r => r.value), backgroundColor: COLORS, borderWidth: 0 }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { position: 'bottom', labels: { color: '#94a3b8', padding: 16 } } }
+      }
+    });
+
+    // Recent activity
+    const list = document.getElementById('activity-list');
+    if (stats.recentLogs && stats.recentLogs.length > 0) {
+      list.innerHTML = stats.recentLogs.map(log => `
+        <div class="flex items-center gap-4 py-3 border-b border-slate-700/50 last:border-0">
+          <div class="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0"></div>
+          <div class="flex-1 min-w-0">
+            <p class="text-white text-sm">${log.action}</p>
+            <p class="text-slate-400 text-xs mt-0.5">${log.userName} · ${new Date(log.timestamp).toLocaleString()}</p>
+          </div>
+          <span class="text-xs bg-slate-700 text-slate-300 px-2.5 py-1 rounded-lg flex-shrink-0">${log.module}</span>
+        </div>
+      `).join('');
+    } else {
+      list.innerHTML = '<p class="text-slate-400 text-sm text-center py-8">No activity yet. Start by adding frameworks.</p>';
+    }
+
+    document.getElementById('loading').classList.add('hidden');
+    document.getElementById('content').classList.remove('hidden');
+  } catch (err) {
+    document.getElementById('loading').textContent = 'Failed to load dashboard.';
+  }
+}
+
+loadDashboard();
+</script>
+{% endblock %}

@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}Audit Logs — CCT{% endblock %}
+{% block page_title %}Audit Logs{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+  <div class="flex flex-wrap items-center justify-between gap-3">
+    <p class="text-slate-400 text-sm" id="log-count">Loading...</p>
+    <input id="search" oninput="filterLogs()" placeholder="Search action, module or user..."
+      class="bg-slate-800 border border-slate-700 text-white px-4 py-2.5 rounded-xl text-sm focus:outline-none focus:border-blue-500 w-72 placeholder-slate-500"/>
+  </div>
+
+  <div class="bg-slate-800 border border-slate-700 rounded-2xl overflow-hidden">
+    <div class="overflow-x-auto">
+      <table class="w-full min-w-[580px]">
+        <thead>
+          <tr class="border-b border-slate-700">
+            <th class="text-left text-slate-400 text-xs uppercase tracking-wide px-6 py-4">Action</th>
+            <th class="text-left text-slate-400 text-xs uppercase tracking-wide px-6 py-4">User</th>
+            <th class="text-left text-slate-400 text-xs uppercase tracking-wide px-6 py-4">Module</th>
+            <th class="text-left text-slate-400 text-xs uppercase tracking-wide px-6 py-4">Timestamp</th>
+          </tr>
+        </thead>
+        <tbody id="log-tbody">
+          <tr><td colspan="4" class="text-center text-slate-400 py-16">Loading logs...</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div id="log-footer" class="px-6 py-3 border-t border-slate-700 hidden">
+      <p id="log-footer-text" class="text-slate-500 text-xs"></p>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let allLogs = [];
+const MOD_CLS = {
+  Auth:       'bg-purple-900/50 text-purple-400',
+  Frameworks: 'bg-blue-900/50 text-blue-400',
+  Tasks:      'bg-green-900/50 text-green-400',
+  Risks:      'bg-orange-900/50 text-orange-400',
+};
+
+async function loadLogs() {
+  allLogs = await api('GET', '/auditlogs/') || [];
+  renderLogs(allLogs);
+}
+
+function filterLogs() {
+  const q = document.getElementById('search').value.toLowerCase();
+  const filtered = allLogs.filter(l =>
+    l.action?.toLowerCase().includes(q) ||
+    l.module?.toLowerCase().includes(q) ||
+    l.userName?.toLowerCase().includes(q)
+  );
+  renderLogs(filtered, allLogs.length);
+}
+
+function renderLogs(logs, total = null) {
+  document.getElementById('log-count').textContent = `${logs.length} entries${total && total !== logs.length ? ' (filtered from ' + total + ')' : ''}`;
+
+  const tbody = document.getElementById('log-tbody');
+  if (logs.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="4" class="text-center text-slate-400 py-16 text-sm">No logs found.</td></tr>`;
+    document.getElementById('log-footer').classList.add('hidden');
+    return;
+  }
+
+  tbody.innerHTML = logs.map(log => `
+    <tr class="border-b border-slate-700/50 hover:bg-slate-700/20 transition-colors">
+      <td class="px-6 py-4">
+        <p class="text-white text-sm">${escHtml(log.action)}</p>
+        ${log.details ? `<p class="text-slate-500 text-xs mt-0.5">${escHtml(log.details)}</p>` : ''}
+      </td>
+      <td class="px-6 py-4 text-slate-300 text-sm">${escHtml(log.userName || 'System')}</td>
+      <td class="px-6 py-4">
+        <span class="text-xs px-2.5 py-1 rounded-full font-medium ${MOD_CLS[log.module] || 'bg-slate-700 text-slate-300'}">
+          ${escHtml(log.module)}
+        </span>
+      </td>
+      <td class="px-6 py-4 text-slate-400 text-sm">
+        ${new Date(log.timestamp).toLocaleString('en-GB', {day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'})}
+      </td>
+    </tr>
+  `).join('');
+
+  document.getElementById('log-footer').classList.remove('hidden');
+  document.getElementById('log-footer-text').textContent = `Showing ${logs.length} entries`;
+}
+
+function escHtml(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+loadLogs();
+</script>
+{% endblock %}
