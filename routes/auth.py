@@ -10,7 +10,241 @@ auth_bp = Blueprint('auth', __name__)
 def serialize_user(user):
     return {
         'id': str(user['_id']),
+        'name': user['name'],from flask import Blueprint, request, jsonify
+from flask_jwt_extended import (
+    create_access_token,
+    jwt_required,
+    get_jwt_identity
+)
+from config.database import get_db
+from bson import ObjectId
+from datetime import datetime
+import bcrypt
+
+auth_bp = Blueprint('auth', __name__)
+
+
+# -------------------------------
+# Helper Functions
+# -------------------------------
+
+def serialize_user(user):
+    return {
+        'id': str(user['_id']),
         'name': user['name'],
+        'email': user['email'],
+        'role': user['role']
+    }
+
+
+def log_action(user_id, action, module, details=''):
+    try:
+        db = get_db()
+
+        db.audit_logs.insert_one({
+            'userId': str(user_id),
+            'action': action,
+            'module': module,
+            'details': details,
+            'timestamp': datetime.utcnow()
+        })
+
+    except Exception as e:
+        print(f"Audit log error: {e}")
+
+
+# -------------------------------
+# Register Route
+# -------------------------------
+
+@auth_bp.route('/register', methods=['POST'])
+def register():
+
+    try:
+        data = request.get_json() or {}
+
+        db = get_db()
+
+        name = (data.get('name') or '').strip()
+        email = (data.get('email') or '').strip().lower()
+        password = data.get('password') or ''
+
+        # SECURITY FIX:
+        # Never trust frontend role input
+        role = 'user'
+
+        # Validation
+        if not name or not email or not password:
+            return jsonify({
+                'message': 'Name, email and password are required'
+            }), 400
+
+        if len(password) < 6:
+            return jsonify({
+                'message': 'Password must be at least 6 characters'
+            }), 400
+
+        # Check existing user
+        existing_user = db.users.find_one({'email': email})
+
+        if existing_user:
+            return jsonify({
+                'message': 'An account with this email already exists'
+            }), 400
+
+        # Hash password
+        hashed_password = bcrypt.hashpw(
+            password.encode('utf-8'),
+            bcrypt.gensalt()
+        ).decode('utf-8')
+
+        # Create user document
+        user_doc = {
+            'name': name,
+            'email': email,
+            'password': hashed_password,
+            'role': role,
+            'createdAt': datetime.utcnow()
+        }
+
+        # Insert into database
+        result = db.users.insert_one(user_doc)
+
+        user_doc['_id'] = result.inserted_id
+
+        # Create JWT token
+        token = create_access_token(
+            identity=str(result.inserted_id),
+            additional_claims={
+                'role': role
+            }
+        )
+
+        # Audit log
+        log_action(
+            result.inserted_id,
+            'User registered',
+            'Auth',
+            f'New account created: {email}'
+        )
+
+        return jsonify({
+            'token': token,
+            'user': serialize_user(user_doc)
+        }), 201
+
+    except Exception as e:
+        print(f"REGISTER ERROR: {e}")
+
+        return jsonify({
+            'message': 'Registration failed',
+            'error': str(e)
+        }), 500
+
+
+# -------------------------------
+# Login Route
+# -------------------------------
+
+@auth_bp.route('/login', methods=['POST'])
+def login():
+
+    try:
+        data = request.get_json() or {}
+
+        db = get_db()
+
+        email = (data.get('email') or '').strip().lower()
+        password = data.get('password') or ''
+
+        # Validation
+        if not email or not password:
+            return jsonify({
+                'message': 'Email and password are required'
+            }), 400
+
+        # Find user
+        user = db.users.find_one({'email': email})
+
+        if not user:
+            return jsonify({
+                'message': 'Invalid email or password'
+            }), 400
+
+        # Verify password
+        password_match = bcrypt.checkpw(
+            password.encode('utf-8'),
+            user['password'].encode('utf-8')
+        )
+
+        if not password_match:
+            return jsonify({
+                'message': 'Invalid email or password'
+            }), 400
+
+        # Create token
+        token = create_access_token(
+            identity=str(user['_id']),
+            additional_claims={
+                'role': user['role']
+            }
+        )
+
+        # Audit log
+        log_action(
+            user['_id'],
+            'User logged in',
+            'Auth',
+            f'{email} signed in'
+        )
+
+        return jsonify({
+            'token': token,
+            'user': serialize_user(user)
+        }), 200
+
+    except Exception as e:
+        print(f"LOGIN ERROR: {e}")
+
+        return jsonify({
+            'message': 'Login failed',
+            'error': str(e)
+        }), 500
+
+
+# -------------------------------
+# Current User Route
+# -------------------------------
+
+@auth_bp.route('/me', methods=['GET'])
+@jwt_required()
+def get_me():
+
+    try:
+        user_id = get_jwt_identity()
+
+        db = get_db()
+
+        user = db.users.find_one({
+            '_id': ObjectId(user_id)
+        })
+
+        if not user:
+            return jsonify({
+                'message': 'User not found'
+            }), 404
+
+        return jsonify(
+            serialize_user(user)
+        ), 200
+
+    except Exception as e:
+        print(f"ME ROUTE ERROR: {e}")
+
+        return jsonify({
+            'message': 'Failed to fetch user',
+            'error': str(e)
+        }), 500
         'email': user['email'],
         'role': user['role']
     }
