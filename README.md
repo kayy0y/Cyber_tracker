@@ -1,9 +1,4 @@
-# 🛡️ Cyber Compliance Tracker (Python Version)
-
-Full-stack cybersecurity compliance management platform.
-**100% Python backend. No Node.js required anywhere.**
-
----
+# Cyber Compliance Tracker
 
 ## Tech Stack
 
@@ -143,41 +138,4 @@ cyber-compliance-tracker/
     ├── risks.html
     └── audit_logs.html
 ```
-
----
-
-## API Endpoints
-
-| Method | Endpoint                | Description         |
-|--------|-------------------------|---------------------|
-| POST   | /api/auth/register      | Register            |
-| POST   | /api/auth/login         | Login               |
-| GET    | /api/frameworks/        | List frameworks     |
-| POST   | /api/frameworks/        | Create framework    |
-| PUT    | /api/frameworks/<id>    | Update framework    |
-| DELETE | /api/frameworks/<id>    | Delete framework    |
-| GET    | /api/tasks/             | List tasks          |
-| POST   | /api/tasks/             | Create task         |
-| PUT    | /api/tasks/<id>         | Update task         |
-| DELETE | /api/tasks/<id>         | Delete task         |
-| GET    | /api/risks/             | List risks          |
-| POST   | /api/risks/             | Create risk         |
-| PUT    | /api/risks/<id>         | Update risk         |
-| DELETE | /api/risks/<id>         | Delete risk         |
-| GET    | /api/dashboard/stats    | Dashboard data      |
-| GET    | /api/auditlogs/         | Audit logs          |
-
----
-
-## Common Errors
-
-| Error | Fix |
-|-------|-----|
-| `MongoDB connection failed` | Check MONGO_URI in .env — password may have special characters, URL-encode them |
-| `Module not found` | Run `pip install -r requirements.txt` again with venv activated |
-| Page loads but API fails | JWT_SECRET is missing from .env |
-| Render deploy fails | Check build logs — usually a missing package or wrong start command |
-
----
-
-Built as a Final Year Project — Cybersecurity Compliance Management System
+## Live Demo
