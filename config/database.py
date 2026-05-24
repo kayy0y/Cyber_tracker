@@ -7,28 +7,24 @@ load_dotenv()
 _db = None
 
 def get_db():
+
     global _db
 
     if _db is None:
 
-        mongo_uri = os.getenv('MONGO_URI')
+        mongo_uri = os.getenv("MONGO_URI")
+
+        print("MONGO URI:", mongo_uri)
 
         if not mongo_uri:
-            raise Exception("❌ MONGO_URI environment variable is missing")
+            raise Exception("MONGO_URI missing")
 
-        try:
-            client = MongoClient(mongo_uri)
+        client = MongoClient(mongo_uri)
 
-            # Test connection
-            client.admin.command('ping')
+        client.admin.command("ping")
 
-            # Database name
-            _db = client['cyber-compliance']
+        _db = client["cyber-compliance"]
 
-            print("✅ MongoDB Connected Successfully")
-
-        except Exception as e:
-            print(f"❌ MongoDB connection failed: {e}")
-            raise e
+        print("✅ MongoDB Connected")
 
     return _db
